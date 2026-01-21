@@ -1,62 +1,55 @@
 import os
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 
 START_TEXT = (
-    "Здравствуйте!\n\n"
-    "Чек оплаты за доставку коробок Джурыми до админа можете прислать сюда.\n\n"
+    "Здравствуйте! Чек оплаты за доставку коробок Джурыми до админа можете прислать сюда.\n\n"
     "Перед тем, как отправить чек, обязательно напишите:\n"
-    "• за какую коробку\n"
-    "• какие позиции\n"
-    "• сумму\n\n"
+    "— оплата за какую коробку\n"
+    "— какие позиции\n"
+    "— сумму\n\n"
     "Пример:\n"
-    "@вашюзер\n"
+    "@ваш_юзернейм\n"
     "1 Корейская коробка\n"
     "#кор1 (название позиции)\n"
     "#кор2 (название позиции)\n"
     "Общая сумма\n\n"
-    "Если оплатили несколько коробок — укажите всё одним сообщением ❤️"
+    "Если оплатили за несколько коробок — указывайте всё одним сообщением ❤️"
 )
 
-THANK_YOU_TEXT = (
-    "Чек принят! ✅\n\n"
-    "Я переслала его админу для проверки.\n"
-    "Статус можно проверить в боте таблиц.\n\n"
+CONFIRM_TEXT = (
+    "Чек принят! Присылаю админу для проверки.\n\n"
+    "Статус можно проверить в боте таблиц — "
+    "если чек принят, позиции исчезнут.\n\n"
+    "Бот обновляется раз в три дня.\n\n"
     "Спасибо, что закупаетесь у нас ❤️"
 )
 
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(START_TEXT)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(START_TEXT)
+def handle_receipt(update: Update, context: CallbackContext):
+    # пересылаем админу сообщение + файл
+    context.bot.forward_message(
+        chat_id=ADMIN_CHAT_ID,
+        from_chat_id=update.message.chat_id,
+        message_id=update.message.message_id
+    )
 
-
-async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-
-    # Пересылаем админу ВСЁ как есть
-    await message.forward(chat_id=ADMIN_CHAT_ID)
-
-    # Благодарим пользователя
-    await message.reply_text(THANK_YOU_TEXT)
-
+    update.message.reply_text(CONFIRM_TEXT)
 
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_receipt))
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.all & ~Filters.command, handle_receipt))
 
-    app.run_polling()
-
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
