@@ -1,49 +1,37 @@
 import os
-from telegram import (
-    Update,
-    ReplyKeyboardMarkup,
-    KeyboardButton
-)
-from telegram.ext import (
-    Updater,
-    CommandHandler,
-    MessageHandler,
-    Filters,
-    CallbackContext
-)
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 
-# ---------- КНОПКА ----------
+# ---------- ТЕКСТ И КНОПКА ----------
+START_TEXT = (
+    "Здравствуйте!\n\n"
+    "Чек оплаты за доставку коробок Джурыми до админа можете прислать сюда.\n\n"
+    "Перед тем, как отправить чек, обязательно напишите:\n"
+    "• оплата за какую коробку\n"
+    "• какие позиции\n"
+    "• сумму\n\n"
+    "Если вы оплатили за несколько коробок — указывайте всё одним текстом "
+    "и отправьте одним чеком ❤️"
+)
+
 keyboard = ReplyKeyboardMarkup(
-    [[KeyboardButton("📎 Отправить чек")]],
+    [["Отправить чек"]],
     resize_keyboard=True
 )
 
-# ---------- /start ----------
+# ---------- /start И КНОПКА ----------
 def start(update: Update, context: CallbackContext):
-    text = (
-        "Здравствуйте!\n\n"
-        "Пожалуйста, отправляя чек, укажите:\n"
-        "• за какую коробку произведена оплата\n"
-        "• за какие позиции\n\n"
-        "Если чек за несколько коробок — просто напишите об этом текстом.\n"
-        "После этого нажмите кнопку ниже и прикрепите чек."
-    )
-    update.message.reply_text(text, reply_markup=keyboard)
+    update.message.reply_text(START_TEXT, reply_markup=keyboard)
 
-# ---------- НАЖАТИЕ КНОПКИ ----------
-def send_receipt_prompt(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "Прикрепите чек (фото или файл).\n"
-        "Если чек за несколько коробок — напишите это сообщением."
-    )
+def show_instruction(update: Update, context: CallbackContext):
+    start(update, context)
 
-# ---------- ПОЛУЧЕНИЕ ЧЕКА ----------
+# ---------- ПРИЁМ ЧЕКА ----------
 def handle_receipt(update: Update, context: CallbackContext):
     user = update.message.from_user
-
     username = f"@{user.username}" if user.username else "без username"
     name = user.full_name
 
@@ -51,19 +39,16 @@ def handle_receipt(update: Update, context: CallbackContext):
         "🧾 НОВЫЙ ЧЕК\n\n"
         f"👤 {name}\n"
         f"🔗 {username}\n\n"
-        "ℹ️ Проверь описание от клиента выше"
+        "ℹ️ Описание от клиента смотрите выше"
     )
 
-    # Фото
     if update.message.photo:
-        file_id = update.message.photo[-1].file_id
         context.bot.send_photo(
             chat_id=ADMIN_CHAT_ID,
-            photo=file_id,
+            photo=update.message.photo[-1].file_id,
             caption=caption
         )
 
-    # Документ / PDF
     elif update.message.document:
         context.bot.send_document(
             chat_id=ADMIN_CHAT_ID,
@@ -71,7 +56,11 @@ def handle_receipt(update: Update, context: CallbackContext):
             caption=caption
         )
 
-    update.message.reply_text("Спасибо! Чек получен 🤍")
+    update.message.reply_text(
+        "Чек принят! Присылаю админу для проверки.\n\n"
+        "Статус можно проверить в боте таблиц.\n"
+        "Спасибо, что закупаетесь у нас ❤️"
+    )
 
 # ---------- MAIN ----------
 def main():
@@ -79,7 +68,7 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text("📎 Отправить чек"), send_receipt_prompt))
+    dp.add_handler(MessageHandler(Filters.text & Filters.regex("^Отправить чек$"), show_instruction))
     dp.add_handler(MessageHandler(Filters.photo | Filters.document, handle_receipt))
 
     updater.start_polling()
